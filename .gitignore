@@ -5,6 +5,7 @@
 *.exe
 *.out
 *.o
+main
 
 # Ignore OS files
 .DS_Store
