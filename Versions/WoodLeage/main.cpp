@@ -39,6 +39,7 @@ int main()
     // game loop
     while (1) {
         int agent_count;
+        int maxWetness = -1, agentMaxId = -1;
         cin >> agent_count; cin.ignore();
         for (int i = 0; i < agent_count; i++) {
             int agent_id;
@@ -48,6 +49,10 @@ int main()
             int splash_bombs;
             int wetness; // Damage (0-100) this agent has taken
             cin >> agent_id >> x >> y >> cooldown >> splash_bombs >> wetness; cin.ignore();
+            if(wetness > maxWetness){
+                maxWetness = wetness;
+                agentMaxId = agent_id;
+            }
         }
         int my_agent_count; // Number of alive agents controlled by you
         cin >> my_agent_count; cin.ignore();
@@ -60,7 +65,7 @@ int main()
             // One line per agent: <agentId>;<action1;action2;...> actions are "MOVE x y | SHOOT id | THROW x y | HUNKER_DOWN | MESSAGE text"
             
         }
-        cout << "1;MOVE 6 1"<< endl;
-        cout << "2;MOVE 6 3"<< endl;
+        cout << "1;SHOOT "<<agentMaxId<< endl;
+        cout << "2;SHOOT "<<agentMaxId<< endl;
     }
 }
