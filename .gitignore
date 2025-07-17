@@ -1,15 +1,5 @@
 # Ignore VS Code settings folder
 .vscode/
 
-# Ignore build outputs
-*.exe
-*.out
-*.o
-main
-
-# Ignore OS files
-.DS_Store
-Thumbs.db
-
-# Ignore logs
-*.log
+#Ignore all notes
+*.txt

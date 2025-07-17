@@ -26,20 +26,41 @@ struct AGENT{
     int power; // Damage output within optimal conditions
     int bombs; // Number of splash bombs this can throw this game
     int wetness; // Taken damage
-    int turnCount = 1; // TEMPORARY SOLUTION FOR A TEMPORARY PROBLEM
+    int cooldownLeft = 0; // Cooldown in turns left to wait before being able to shoot again
 };
 struct TILE{
     int type; // Type of tile
 };
 
+void PRINT(vector<AGENT> agent){
+    for(auto i : agent){
+        cerr<<i.id<<":\n";
+        cerr<<"    Range: "<<i.range<<"\n";
+        cerr<<"    Power: "<<i.power<<"\n";
+        cerr<<"    Wetness: "<<i.wetness<<"\n";
+        cerr<<"    CooldownLeft: "<<i.cooldownLeft<<"\n";
+        cerr<<endl;
+    }
+}
+
+// Returns manhattan distance between two coordinates
 int distance(COORDS c1, COORDS c2){
     return abs(c1.x - c2.x) + abs(c1.y - c2.y);
+}
+
+void reduceCooldown(vector<AGENT> &agent){
+    for(auto &i : agent){
+        if(i.cooldownLeft != 0){
+            i.cooldownLeft--;
+        }
+    }
 }
 
 int main()
 {
     GAME game;
     vector<AGENT> agent;
+    
     cin >> game.my_id; cin.ignore();
     cin >> game.agent_count; cin.ignore();
     for (int i = 0; i < game.agent_count; i++) {
@@ -48,7 +69,9 @@ int main()
         agent.push_back(temp);
     }
     cin >> game.width >> game.height; cin.ignore();
+    
     TILE map[game.width][game.height];
+    
     for (int i = 0; i < game.height; i++) {
         for (int j = 0; j < game.width; j++) {
             int x, y, type;
@@ -64,76 +87,30 @@ int main()
         }
         cin >> game.my_agent_count; cin.ignore();
 
-        //Logic Starts Here
-        for(int i=0;i<game.agent_count; i++){
+        //-------------- Logic Starts Here
+        
+        // Reduce cooldownLeft
+        reduceCooldown(agent);
+
+        // Find first enemy
+        int enemyI;
+        for(int i = 0; i<game.agent_count; i++){
+            if(agent[i].player != game.my_id){
+                enemyI = i;
+                break;
+            }
+        }
+
+        // Moves for each agent
+        for(int i = 0; i<game.agent_count; i++){
             if(agent[i].player == game.my_id){
-                if(agent[i].turnCount == 1){
-                    for(int j=0;j<game.agent_count;j++){
-                        if(agent[j].player == game.my_id && agent[j].id != agent[i].id){
-                            if(agent[j].c.x < game.width/2 && agent[j].c.y < game.height/2){
-                                agent[i].turnCount++;
-                                continue;
-                            }
-                        }
-                    }
-                    if(agent[i].c.x == 5 && agent[i].c.y == 2){
-                        cout<<agent[i].id<<";MOVE 5 2;THROW 2 2"<<endl;
-                        agent[i].turnCount++;
-                        continue;
-                    }else{
-                        cout<<agent[i].id<<";MOVE 5 2;"<<endl;
-                    }
-                }
-                if(agent[i].turnCount == 2){
-                    for(int j=0;j<game.agent_count;j++){
-                        if(agent[j].player == game.my_id && agent[j].id != agent[i].id){
-                            if(agent[j].c.x > game.width/2 && agent[j].c.y < game.height/2){
-                                agent[i].turnCount++;
-                                continue;
-                            }
-                        }
-                    }
-                    if(agent[i].c.x == game.width-6 && agent[i].c.y == 2){
-                        cout<<agent[i].id<<";MOVE "<<game.width-6<<" 2;THROW "<<game.width-3<<" 2"<<endl;
-                        agent[i].turnCount++;
-                        continue;
-                    }else{
-                        cout<<agent[i].id<<";MOVE "<<game.width-6<<" 2;"<<endl;
-                    }
-                }
-                if(agent[i].turnCount == 3){
-                    for(int j=0;j<game.agent_count;j++){
-                        if(agent[j].player == game.my_id && agent[j].id != agent[i].id){
-                            if(agent[j].c.x > game.width/2 && agent[j].c.y > game.height/2){
-                                agent[i].turnCount++;
-                                continue;
-                            }
-                        }
-                    }
-                    if(agent[i].c.x == game.width-6 && agent[i].c.y == game.height-3){
-                        cout<<agent[i].id<<";MOVE "<<game.width-6<<" "<<game.height-3<<";THROW "<<game.width-3<<" "<<game.height-3<<endl;
-                        agent[i].turnCount++;
-                        continue;
-                    }else{
-                        cout<<agent[i].id<<";MOVE "<<game.width-6<<" "<<game.height-3<<endl;
-                    }
-                }
-                if(agent[i].turnCount == 4){
-                    for(int j=0;j<game.agent_count;j++){
-                        if(agent[j].player == game.my_id && agent[j].id != agent[i].id){
-                            if(agent[j].c.x < game.width/2 && agent[j].c.y > game.height/2){
-                                agent[i].turnCount++;
-                                continue;
-                            }
-                        }
-                    }
-                    if(agent[i].c.x == 5 && agent[i].c.y == game.height-3){
-                        cout<<agent[i].id<<";MOVE 5 "<<game.height-3<<";THROW 2 "<<game.height-3<<endl;
-                        agent[i].turnCount++;
-                        continue;
-                    }else{
-                        cout<<agent[i].id<<";MOVE 5 "<<game.height-3<<endl;
-                    }
+                // My agent
+                if(agent[i].range*2 >= distance(agent[i].c, agent[enemyI].c)){
+                    cout<<agent[i].id<<";SHOOT "<<agent[enemyI].id<<endl;
+                    continue;
+                }else{
+                    cout<<agent[i].id<<";MOVE "<<agent[enemyI].c.x<<" "<<agent[enemyI].c.y<<";HUNKER_DOWN"<<endl;
+                    continue;
                 }
             }
         }
