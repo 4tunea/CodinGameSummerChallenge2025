@@ -27,14 +27,23 @@ struct AGENT{
     int bombs; // Number of splash bombs this can throw this game
     int wetness; // Taken damage
     int cooldownLeft = 0; // Cooldown in turns left to wait before being able to shoot again
+    bool mine; // Does the agent belong to me
 };
+
 struct TILE{
     int type; // Type of tile
+};
+
+struct COVER{
+    COORDS c;
+    int type;
+    int takenById = -1;
 };
 
 void PRINT(vector<AGENT> agent){
     for(auto i : agent){
         cerr<<i.id<<":\n";
+        cerr<<"    IsMine: "<<i.mine<<"\n";
         cerr<<"    Range: "<<i.range<<"\n";
         cerr<<"    Power: "<<i.power<<"\n";
         cerr<<"    Wetness: "<<i.wetness<<"\n";
@@ -48,12 +57,47 @@ int distance(COORDS c1, COORDS c2){
     return abs(c1.x - c2.x) + abs(c1.y - c2.y);
 }
 
+// Reduces the cooldown left by 1 turn
 void reduceCooldown(vector<AGENT> &agent){
     for(auto &i : agent){
         if(i.cooldownLeft != 0){
             i.cooldownLeft--;
         }
     }
+}
+
+// Finds all covers in the map and returns them
+vector<COVER> findCovers(const GAME& game, const vector<vector<TILE>>& map) {
+    vector<COVER> covers;
+    for(int x = 0; x < game.width; x++){
+        for(int y = 0; y < game.height; y++){
+            if(map[x][y].type != 0){
+                covers.push_back({{x, y}, map[x][y].type});
+            }
+        }
+    }
+    return covers;
+}
+
+// Returnes the coordinates of the best cover for that agent
+COORDS findBestCover(GAME& game, vector<vector<TILE>> map, vector<COVER>& covers, vector<AGENT>& agent, size_t& agentI){
+    COORDS bestCover;
+    int minPoints = INT32_MAX;
+    for(auto i : covers){
+        if(agent[agentI].c.x < game.width/2){
+            i.c.x--;
+        }else{
+            i.c.x++;
+        }
+        if(map[i.c.x][i.c.y].type != 0){continue;}
+        
+        int points = distance(i.c, {game.width/2, agent[agentI].c.y});
+        if(points < minPoints && abs(agent[agentI].c.x - i.c.x) < game.width/2){
+            minPoints = points;
+            bestCover = i.c;
+        }
+    }
+    return bestCover;
 }
 
 int main()
@@ -63,17 +107,22 @@ int main()
     
     cin >> game.my_id; cin.ignore();
     cin >> game.agent_count; cin.ignore();
-    for (int i = 0; i < game.agent_count; i++) {
+    for (size_t i = 0; i < game.agent_count; i++) {
         AGENT temp;
         cin >> temp.id >> temp.player >> temp.cooldown >> temp.range >> temp.power >> temp.bombs; cin.ignore();
+        if(temp.player == game.my_id){
+            temp.mine = true;
+        }else{
+            temp.mine = false;
+        }
         agent.push_back(temp);
     }
     cin >> game.width >> game.height; cin.ignore();
     
-    TILE map[game.width][game.height];
-    
-    for (int i = 0; i < game.height; i++) {
-        for (int j = 0; j < game.width; j++) {
+
+    vector<vector<TILE>> map(game.width, vector<TILE>(game.height));
+    for (size_t i = 0; i < game.height; i++) {
+        for (size_t j = 0; j < game.width; j++) {
             int x, y, type;
             cin >> x >> y >> type; cin.ignore();
             map[x][y].type = type;
@@ -82,36 +131,20 @@ int main()
 
     while (1) {
         cin >> game.agent_count; cin.ignore();
-        for (int i = 0; i < game.agent_count; i++) {
+        for (size_t i = 0; i < game.agent_count; i++) {
            cin >> agent[i].id >> agent[i].c.x >> agent[i].c.y >> agent[i].cooldown >> agent[i].bombs >> agent[i].wetness; cin.ignore();
         }
         cin >> game.my_agent_count; cin.ignore();
 
         //-------------- Logic Starts Here
         
-        // Reduce cooldownLeft
+        // Reduce cooldown left
         reduceCooldown(agent);
-
-        // Find first enemy
-        int enemyI;
-        for(int i = 0; i<game.agent_count; i++){
-            if(agent[i].player != game.my_id){
-                enemyI = i;
-                break;
-            }
-        }
-
-        // Moves for each agent
-        for(int i = 0; i<game.agent_count; i++){
-            if(agent[i].player == game.my_id){
-                // My agent
-                if(agent[i].range*2 >= distance(agent[i].c, agent[enemyI].c)){
-                    cout<<agent[i].id<<";SHOOT "<<agent[enemyI].id<<endl;
-                    continue;
-                }else{
-                    cout<<agent[i].id<<";MOVE "<<agent[enemyI].c.x<<" "<<agent[enemyI].c.y<<";HUNKER_DOWN"<<endl;
-                    continue;
-                }
+        vector<COVER> covers = findCovers(game, map);
+        for(size_t i = 0; i < game.agent_count; i++){
+            if(agent[i].mine){
+                COORDS bestCover = findBestCover(game, map, covers, agent, i);
+                cout<<agent[i].id<<";MOVE "<<bestCover.x<<" "<<bestCover.y<<endl;
             }
         }
     }
