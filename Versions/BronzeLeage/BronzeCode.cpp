@@ -28,7 +28,6 @@ struct AGENT{
     int power; // Damage output within optimal conditions
     int bombs; // Number of splash bombs this can throw this game
     int wetness; // Taken damage
-    int cooldownLeft = 0; // Cooldown in turns left to wait before being able to shoot again
     bool mine; // Does the agent belong to me
     COORDS target; // The target tile to reach
     COORDS nextMove = {-1, -1}; // Next move where the agent is going to go
@@ -53,7 +52,7 @@ void PRINT(unordered_map<int, AGENT> agent){
         cerr<<"    Range: "<<i.range<<"\n";
         cerr<<"    Power: "<<i.power<<"\n";
         cerr<<"    Wetness: "<<i.wetness<<"\n";
-        cerr<<"    CooldownLeft: "<<i.cooldownLeft<<"\n";
+        cerr<<"    Cooldown: "<<i.cooldown<<"\n";
         cerr<<"    Target: "<<i.target.x<<" "<<i.target.y<<"\n";
         cerr<<"    NextMove: "<<i.nextMove.x<<" "<<i.nextMove.y<<"\n";
         cerr<<"    Dead: "<<i.dead<<"\n";
@@ -82,15 +81,6 @@ void PRINT(vector<vector<int>>& map){
 // Returns manhattan distance between two coordinates
 int distance(COORDS c1, COORDS c2){
     return abs(c1.x - c2.x) + abs(c1.y - c2.y);
-}
-
-// Reduces the cooldown left by 1 turn
-void reduceCooldown(unordered_map<int, AGENT>& agent){
-    for(auto &[id, i] : agent){
-        if(i.cooldownLeft != 0){
-            i.cooldownLeft--;
-        }
-    }
 }
 
 // Finds all covers in the map and returns them
@@ -163,7 +153,7 @@ COORDS selectRoute(GAME& game, vector<vector<TILE>>& map, COORDS& start, COORDS&
         return start;
     }
     
-    COORDS selectedRoutesFirstMove = {-1, -1};
+    COORDS selectedRoutesFirstMove = start;
     struct QUE{
         COORDS c;
         int weight;
@@ -185,7 +175,11 @@ COORDS selectRoute(GAME& game, vector<vector<TILE>>& map, COORDS& start, COORDS&
         if(q.c.x == end.x && q.c.y == end.y){
             if(weightEnd == -1){
                 weightEnd = q.weight;
-                selectedRoutesFirstMove = q.firstMove;
+                if(q.firstMove.x == -1){
+                    selectedRoutesFirstMove = q.c;
+                }else{
+                    selectedRoutesFirstMove = q.firstMove;
+                }
             }else{
                 if(weightEnd < q.weight){
                     continue;
@@ -231,7 +225,7 @@ COORDS selectRoute(GAME& game, vector<vector<TILE>>& map, COORDS& start, COORDS&
     return selectedRoutesFirstMove;
 }
 
-vector<vector<int>> mapAgents(vector<vector<TILE>>& map, GAME& game, unordered_map<int, AGENT>& agent){
+vector<vector<int>> mapAgents(GAME& game, unordered_map<int, AGENT>& agent){
     vector<vector<int>> mapAgent(game.width, vector<int>(game.height, 0));
     for(auto& [id, i] : agent){
         if(!i.dead){
@@ -243,6 +237,29 @@ vector<vector<int>> mapAgents(vector<vector<TILE>>& map, GAME& game, unordered_m
         }
     }
     return mapAgent;
+}
+
+vector<vector<int>> mapNextMoveAgents(GAME& game, unordered_map<int, AGENT>& agent){
+    vector<vector<int>> mapNextMoveAgent(game.width, vector<int>(game.height, 0));
+    for(auto& [id, i] : agent){
+        if(!i.dead){
+            if(i.nextMove.x >= 0 && i.nextMove.x < game.width && i.nextMove.y >= 0 && i.nextMove.y < game.height){
+                if(i.mine){
+                    mapNextMoveAgent[i.nextMove.x][i.nextMove.y] = 1;
+                }else{
+                    mapNextMoveAgent[i.nextMove.x][i.nextMove.y] = 2;
+                }
+            }else{
+                if(i.mine){
+                    mapNextMoveAgent[i.c.x][i.c.y] = 1;
+                }else{
+                    mapNextMoveAgent[i.c.x][i.c.y] = 2;
+                }
+            }
+            
+        }
+    }
+    return mapNextMoveAgent;
 }
 
 int bombDamage(vector<vector<int>>& mapAgent, GAME& game, COORDS bombDetonation){
@@ -294,16 +311,50 @@ COORDS canBomb(vector<vector<int>>& mapBombUsage, COORDS pos){
     return toBomb;
 }
 
+int canShoot(unordered_map<int, AGENT>& agent, int id){
+    int toShoot = -1;
+    int maxDamage = 0;
+    for(auto [i_id, i] : agent){
+        if(!i.mine && !i.dead){
+            int damage = agent[id].power;
+            agent[id].c = agent[id].nextMove;
+            if(distance(agent[id].c, i.c) > agent[id].range){
+                if(distance(agent[id].c, i.c) > agent[id].range*2){
+                    damage = 0;
+                }else{
+                    damage = agent[id].power/2;
+                }
+            }
+            if(i.wetness + damage >= 100){
+                toShoot = i_id;
+                break;
+            }
+            if(maxDamage < damage){
+                maxDamage = damage;
+                toShoot = i_id;
+            }
+        }
+    }
+    return toShoot;
+}
+
 void findNextMove(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id, vector<vector<int>>& mapBombUsage){
     // 1 action
     agent[id].target = findTarget(game, map, covers, agent, id);
     agent[id].nextMove = selectRoute(game, map, agent[id].c, agent[id].target);
     agent[id].move = ";MOVE " + to_string(agent[id].nextMove.x) + ' ' + to_string(agent[id].nextMove.y);
+    vector<vector<int>> mapNextMoveAgent = mapNextMoveAgents(game, agent);
 
     // 2 action
+    mapBombUsage = mapBombs(map, game, agent, mapNextMoveAgent);
     COORDS toBomb = canBomb(mapBombUsage, agent[id].c);
     if(toBomb.x != -1 && agent[id].bombs > 0){
         agent[id].move += ";THROW " + to_string(toBomb.x) + ' ' + to_string(toBomb.y);
+    }else{
+        int toShoot = canShoot(agent, id);
+        if(toShoot != -1 && agent[id].cooldown == 0){
+            agent[id].move += ";SHOOT " + to_string(toShoot);
+        }
     }
 }
 
@@ -357,10 +408,8 @@ int main()
 
         //-------------- Logic Starts Here
         
-        reduceCooldown(agent);
         agentMineCheck(agent, game);
-        mapAgent = mapAgents(map, game, agent);
-        mapBombUsage = mapBombs(map, game, agent, mapAgent);
+        //mapAgent = mapAgents(game, agent);
         for(auto& [id, i] : agent){
             if(i.mine && !i.dead){
                 findNextMove(game, map, covers, agent, id, mapBombUsage);
