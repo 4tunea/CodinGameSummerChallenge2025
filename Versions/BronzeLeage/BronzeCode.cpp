@@ -69,6 +69,16 @@ void PRINT(vector<COVER> cover){
     cerr<<endl;
 }
 
+void PRINT(vector<vector<int>>& map){
+    cerr <<"\nMAP:\n";
+    for (size_t y = 0; y < map[0].size(); y++){
+        for (size_t x = 0; x < map.size(); x++){
+            cerr<<map[x][y]<<" ";
+        }
+        cerr<<"\n";
+    }
+}
+
 // Returns manhattan distance between two coordinates
 int distance(COORDS c1, COORDS c2){
     return abs(c1.x - c2.x) + abs(c1.y - c2.y);
@@ -221,10 +231,80 @@ COORDS selectRoute(GAME& game, vector<vector<TILE>>& map, COORDS& start, COORDS&
     return selectedRoutesFirstMove;
 }
 
-void findNextMove(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id){
+vector<vector<int>> mapAgents(vector<vector<TILE>>& map, GAME& game, unordered_map<int, AGENT>& agent){
+    vector<vector<int>> mapAgent(game.width, vector<int>(game.height, 0));
+    for(auto& [id, i] : agent){
+        if(!i.dead){
+            if(i.mine){
+                mapAgent[i.c.x][i.c.y] = 1;
+            }else{
+                mapAgent[i.c.x][i.c.y] = 2;
+            }
+        }
+    }
+    return mapAgent;
+}
+
+int bombDamage(vector<vector<int>>& mapAgent, GAME& game, COORDS bombDetonation){
+    int bombDamage = 0;
+    COORDS dir[9] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}};
+            for(size_t p = 0; p < 9; p++){
+                if(bombDetonation.x + dir[p].x >= 0 && bombDetonation.x + dir[p].x < game.width && bombDetonation.y + dir[p].y >= 0 && bombDetonation.y + dir[p].y < game.height){
+                    if(mapAgent[bombDetonation.x + dir[p].x][bombDetonation.y + dir[p].y] == 2){
+                        bombDamage++;
+                    }
+                    if(mapAgent[bombDetonation.x + dir[p].x][bombDetonation.y + dir[p].y] == 1){
+                        return -1;
+                    }
+                }
+            }
+    return bombDamage;
+}
+
+vector<vector<int>> mapBombs(vector<vector<TILE>>& map, GAME& game, unordered_map<int, AGENT>& agent, vector<vector<int>>& mapAgent){
+    vector<vector<int>> mapOfBombUsage(game.width, vector<int>(game.height, 0));
+
+    for(auto& [id, i] : agent){
+        if(!i.mine && !i.dead){
+            COORDS dir[9] = {{0, 0}, {1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, -1}, {1, -1}, {-1, 1}};
+            for(size_t p = 0; p < 9; p++){
+                if(i.c.x + dir[p].x >= 0 && i.c.x + dir[p].x < game.width && i.c.y + dir[p].y >= 0 && i.c.y + dir[p].y < game.height){
+                    if(mapOfBombUsage[i.c.x + dir[p].x][i.c.y + dir[p].y] == 0){
+                        mapOfBombUsage[i.c.x + dir[p].x][i.c.y + dir[p].y] = bombDamage(mapAgent, game, {i.c.x + dir[p].x, i.c.y + dir[p].y});
+                    }
+                }
+            }
+        }
+    }
+
+    return mapOfBombUsage;
+}
+
+COORDS canBomb(vector<vector<int>>& mapBombUsage, COORDS pos){
+    COORDS toBomb = {-1, -1};
+    int maxToBomb = -1;
+    for (int y = 0; y < mapBombUsage[0].size(); y++){
+        for (int x = 0; x < mapBombUsage.size(); x++){
+            if(mapBombUsage[x][y] > 0 && maxToBomb < mapBombUsage[x][y] && distance(pos, {x, y}) <= 4){
+                maxToBomb = mapBombUsage[x][y];
+                toBomb = {x, y};
+            }   
+        }
+    }
+    return toBomb;
+}
+
+void findNextMove(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id, vector<vector<int>>& mapBombUsage){
+    // 1 action
     agent[id].target = findTarget(game, map, covers, agent, id);
     agent[id].nextMove = selectRoute(game, map, agent[id].c, agent[id].target);
     agent[id].move = ";MOVE " + to_string(agent[id].nextMove.x) + ' ' + to_string(agent[id].nextMove.y);
+
+    // 2 action
+    COORDS toBomb = canBomb(mapBombUsage, agent[id].c);
+    if(toBomb.x != -1 && agent[id].bombs > 0){
+        agent[id].move += ";THROW " + to_string(toBomb.x) + ' ' + to_string(toBomb.y);
+    }
 }
 
 void executeMoves(unordered_map<int, AGENT>& agent){
@@ -261,6 +341,8 @@ int main()
     }
 
     vector<COVER> covers = findCovers(game, map);
+    vector<vector<int>> mapBombUsage(game.width, vector<int>(game.height));
+    vector<vector<int>> mapAgent(game.width, vector<int>(game.height));
 
     while (1) {
         cin >> game.agent_count; cin.ignore();
@@ -277,9 +359,11 @@ int main()
         
         reduceCooldown(agent);
         agentMineCheck(agent, game);
+        mapAgent = mapAgents(map, game, agent);
+        mapBombUsage = mapBombs(map, game, agent, mapAgent);
         for(auto& [id, i] : agent){
             if(i.mine && !i.dead){
-                findNextMove(game, map, covers, agent, id);
+                findNextMove(game, map, covers, agent, id, mapBombUsage);
             }
         }
         executeMoves(agent);
@@ -287,5 +371,7 @@ int main()
         // Debug
         PRINT(agent);
         PRINT(covers);
+        PRINT(mapAgent);
+        PRINT(mapBombUsage);
     }
 }
