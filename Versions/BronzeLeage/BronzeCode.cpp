@@ -54,6 +54,9 @@ void PRINT(unordered_map<int, AGENT> agent){
         cerr<<"    Power: "<<i.power<<"\n";
         cerr<<"    Wetness: "<<i.wetness<<"\n";
         cerr<<"    CooldownLeft: "<<i.cooldownLeft<<"\n";
+        cerr<<"    Target: "<<i.target.x<<" "<<i.target.y<<"\n";
+        cerr<<"    NextMove: "<<i.nextMove.x<<" "<<i.nextMove.y<<"\n";
+        cerr<<"    Dead: "<<i.dead<<"\n";
         cerr<<endl;
     }
 }
@@ -95,6 +98,37 @@ vector<COVER> findCovers(const GAME& game, const vector<vector<TILE>>& map) {
 
 COORDS findTarget(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id){
     COORDS target = {game.width-1, game.height-1};
+    int minPoints = INT32_MAX;
+
+    for(auto i : covers){
+        COORDS pos = i.c;
+
+        if(agent[id].c.x < game.width/2){
+            if(pos.x == 0) continue;
+            pos.x--;
+        }else{
+            if(pos.x + 1 >= game.width) continue;
+            pos.x++;
+        }
+
+        if(pos.x < 0 || pos.x >= game.width || pos.y < 0 || pos.y >= game.height) continue;
+        if(map[pos.x][pos.y].type != 0) continue;
+
+        bool coverIsTakenAlready = false;
+        for(auto &[j_id, j] : agent){
+            if(j.mine && j.target.x != -1 && pos.x == j.target.x && pos.y == j.target.y){
+                coverIsTakenAlready = true;
+                break;
+            }
+        }
+        if(coverIsTakenAlready) continue;
+
+        int points = distance(pos, {game.width/2, agent[id].c.y});
+        if(points < minPoints && abs(agent[id].c.x - pos.x) < game.width/2 - 1){
+            minPoints = points;
+            target = pos;
+        }
+    }
     return target;
 }
 
@@ -115,6 +149,10 @@ void makeThemDead(unordered_map<int, AGENT>& agent, GAME& game){
 }
 
 COORDS selectRoute(GAME& game, vector<vector<TILE>>& map, COORDS& start, COORDS& end){
+    if(start.x == end.x && start.y == end.y){
+        return start;
+    }
+    
     COORDS selectedRoutesFirstMove = {-1, -1};
     struct QUE{
         COORDS c;
@@ -237,7 +275,6 @@ int main()
 
         //-------------- Logic Starts Here
         
-        // Reduce cooldown left
         reduceCooldown(agent);
         agentMineCheck(agent, game);
         for(auto& [id, i] : agent){
