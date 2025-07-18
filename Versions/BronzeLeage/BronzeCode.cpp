@@ -94,7 +94,7 @@ vector<COVER> findCovers(const GAME& game, const vector<vector<TILE>>& map) {
 }
 
 COORDS findTarget(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id){
-    COORDS target = {0, 0};
+    COORDS target = {game.width-1, game.height-1};
     return target;
 }
 
@@ -185,8 +185,8 @@ COORDS selectRoute(GAME& game, vector<vector<TILE>>& map, COORDS& start, COORDS&
 
 void findNextMove(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id){
     agent[id].target = findTarget(game, map, covers, agent, id);
-    selectRoute(game, map, agent[id].c, agent[id].target);
-    agent[id].move = ";MOVE " + agent[id].nextMove.x + ' ' + agent[id].nextMove.y;
+    agent[id].nextMove = selectRoute(game, map, agent[id].c, agent[id].target);
+    agent[id].move = ";MOVE " + to_string(agent[id].nextMove.x) + ' ' + to_string(agent[id].nextMove.y);
 }
 
 void executeMoves(unordered_map<int, AGENT>& agent){
