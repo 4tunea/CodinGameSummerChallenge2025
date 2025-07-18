@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <unordered_map>
+#include <queue>
 
 using namespace std;
 
@@ -28,9 +30,10 @@ struct AGENT{
     int wetness; // Taken damage
     int cooldownLeft = 0; // Cooldown in turns left to wait before being able to shoot again
     bool mine; // Does the agent belong to me
-    COORDS bestCover; // Every agent gets his own best cover and its job is to try to dominate that area
-    COORDS nextMove = {-1, -1};
-    bool dead = true;
+    COORDS target; // The target tile to reach
+    COORDS nextMove = {-1, -1}; // Next move where the agent is going to go
+    bool dead = true; // If true agent is dead
+    string move = ""; // Full string of move action etc, for couting
 };
 
 struct TILE{
@@ -60,6 +63,7 @@ void PRINT(vector<COVER> cover){
         cerr<<"Cover: "<<i.c.x<<" "<<i.c.y<<"\n";
         cerr<<"    Type: "<<i.type<<"\n";
     }
+    cerr<<endl;
 }
 
 // Returns manhattan distance between two coordinates
@@ -89,36 +93,9 @@ vector<COVER> findCovers(const GAME& game, const vector<vector<TILE>>& map) {
     return covers;
 }
 
-// Returnes the coordinates of the best cover for that agent
-COORDS findBestCover(GAME& game, vector<vector<TILE>> map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id){
-    COORDS bestCover = {-1, -1};
-    int minPoints = INT32_MAX;
-    for(auto i : covers){
-        if(agent[id].c.x < game.width/2){
-            i.c.x--;
-        }else{
-            i.c.x++;
-        }
-        if(map[i.c.x][i.c.y].type != 0){continue;}
-        
-        bool coverIsTakenAlready = false;
-        for(auto &[j_id, j] : agent){
-            if(j.mine){
-                if(j.bestCover.x != -1 && i.c.x == j.bestCover.x && i.c.y == j.bestCover.y){
-                    coverIsTakenAlready = true;
-                    break;
-                }
-            }
-        }
-        if(coverIsTakenAlready){continue;}
-
-        int points = distance(i.c, {game.width/2, agent[id].c.y});
-        if(points < minPoints && abs(agent[id].c.x - i.c.x) < game.width/2-1){
-            minPoints = points;
-            bestCover = i.c;
-        }
-    }
-    return bestCover;
+COORDS findTarget(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id){
+    COORDS target = {0, 0};
+    return target;
 }
 
 void agentMineCheck(unordered_map<int, AGENT>& agent, GAME& game){
@@ -134,6 +111,89 @@ void agentMineCheck(unordered_map<int, AGENT>& agent, GAME& game){
 void makeThemDead(unordered_map<int, AGENT>& agent, GAME& game){
     for(auto &[id, i] : agent){
         i.dead = true;
+    }
+}
+
+COORDS selectRoute(GAME& game, vector<vector<TILE>>& map, COORDS& start, COORDS& end){
+    COORDS selectedRoutesFirstMove = {-1, -1};
+    struct QUE{
+        COORDS c;
+        int weight;
+        COORDS firstMove;
+    };
+    int weightEnd = -1;
+    int weightMap[game.width][game.height];
+    for(size_t x = 0; x < game.width; x++){
+        for(size_t y = 0; y < game.height; y++){
+            weightMap[x][y] = -1;
+        }
+    }
+    weightMap[start.x][start.y] = 0;
+    queue<QUE> que;
+    que.push({start, 0, {-1, -1}});
+    while(!que.empty()){
+        QUE q = que.front();
+        que.pop();
+        if(q.c.x == end.x && q.c.y == end.y){
+            if(weightEnd == -1){
+                weightEnd = q.weight;
+                selectedRoutesFirstMove = q.firstMove;
+            }else{
+                if(weightEnd < q.weight){
+                    continue;
+                }
+                weightEnd = q.weight;
+                selectedRoutesFirstMove = q.firstMove;
+            }
+        }
+
+        if(q.c.x-1 >= 0 && map[q.c.x-1][q.c.y].type == 0){
+            COORDS tempFirstMove = q.firstMove;
+            if(tempFirstMove.x == -1){tempFirstMove.x = q.c.x-1; tempFirstMove.y = q.c.y;}
+            if(weightMap[q.c.x-1][q.c.y] == -1 || weightMap[q.c.x-1][q.c.y] > q.weight+1){
+                weightMap[q.c.x-1][q.c.y] = q.weight+1;
+                que.push({{q.c.x-1, q.c.y}, q.weight+1, tempFirstMove});
+            }
+        }
+        if(q.c.x+1 < game.width && map[q.c.x+1][q.c.y].type == 0){
+            COORDS tempFirstMove = q.firstMove;
+            if(tempFirstMove.x == -1){tempFirstMove.x = q.c.x+1; tempFirstMove.y = q.c.y;}
+            if(weightMap[q.c.x+1][q.c.y] == -1 || weightMap[q.c.x+1][q.c.y] > q.weight+1){
+                weightMap[q.c.x+1][q.c.y] = q.weight+1;
+                que.push({{q.c.x+1, q.c.y}, q.weight+1, tempFirstMove});
+            }
+        }
+        if(q.c.y-1 >= 0 && map[q.c.x][q.c.y-1].type == 0){
+            COORDS tempFirstMove = q.firstMove;
+            if(tempFirstMove.x == -1){tempFirstMove.x = q.c.x; tempFirstMove.y = q.c.y-1;}
+            if(weightMap[q.c.x][q.c.y-1] == -1 || weightMap[q.c.x][q.c.y-1] > q.weight+1){
+                weightMap[q.c.x][q.c.y-1] = q.weight+1;
+                que.push({{q.c.x, q.c.y-1}, q.weight+1, tempFirstMove});
+            }
+        }
+        if(q.c.y+1 < game.height && map[q.c.x][q.c.y+1].type == 0){
+            COORDS tempFirstMove = q.firstMove;
+            if(tempFirstMove.x == -1){tempFirstMove.x = q.c.x; tempFirstMove.y = q.c.y+1;}
+            if(weightMap[q.c.x][q.c.y+1] == -1 || weightMap[q.c.x][q.c.y+1] > q.weight+1){
+                weightMap[q.c.x][q.c.y+1] = q.weight+1;
+                que.push({{q.c.x, q.c.y+1}, q.weight+1, tempFirstMove});
+            }
+        }
+    }
+    return selectedRoutesFirstMove;
+}
+
+void findNextMove(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id){
+    agent[id].target = findTarget(game, map, covers, agent, id);
+    selectRoute(game, map, agent[id].c, agent[id].target);
+    agent[id].move = ";MOVE " + agent[id].nextMove.x + ' ' + agent[id].nextMove.y;
+}
+
+void executeMoves(unordered_map<int, AGENT>& agent){
+    for(const auto& [id, i] : agent){
+        if(i.mine && !i.dead){
+            cout<<id<<i.move<<endl;
+        }
     }
 }
 
@@ -163,11 +223,6 @@ int main()
     }
 
     vector<COVER> covers = findCovers(game, map);
-    for(auto &[id, i] : agent){
-        if(i.mine){
-            i.bestCover = findBestCover(game, map, covers, agent, id);
-        }
-    }
 
     while (1) {
         cin >> game.agent_count; cin.ignore();
@@ -185,17 +240,14 @@ int main()
         // Reduce cooldown left
         reduceCooldown(agent);
         agentMineCheck(agent, game);
-        
-        for(auto &[id, i] : agent){
+        for(auto& [id, i] : agent){
             if(i.mine && !i.dead){
-                if(i.bestCover.x != -1){
-                    cout<<id<<";MOVE "<<i.bestCover.x<<" "<<i.bestCover.y<<endl;
-                }else{
-                    cout<<id<<";MOVE 1 1"<<endl;
-                }
+                findNextMove(game, map, covers, agent, id);
             }
         }
+        executeMoves(agent);
 
+        // Debug
         PRINT(agent);
         PRINT(covers);
     }
