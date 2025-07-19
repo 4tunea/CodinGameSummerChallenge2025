@@ -33,6 +33,7 @@ struct AGENT{
     COORDS nextMove = {-1, -1}; // Next move where the agent is going to go
     bool dead = true; // If true agent is dead
     string move = ""; // Full string of move action etc, for couting
+    COORDS startC = {-1, -1}; // Coordinates of starting position
 };
 
 struct TILE{
@@ -103,7 +104,7 @@ COORDS findTarget(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, 
     for(auto i : covers){
         COORDS pos = i.c;
 
-        if(agent[id].c.x < game.width/2){
+        if(agent[id].startC.x < game.width/2){
             if(pos.x == 0) continue;
             pos.x--;
         }else{
@@ -111,8 +112,8 @@ COORDS findTarget(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, 
             pos.x++;
         }
 
-        if(pos.x < 0 || pos.x >= game.width || pos.y < 0 || pos.y >= game.height) continue;
-        if(map[pos.x][pos.y].type != 0) continue;
+        if(pos.x < 0 || pos.x >= game.width || pos.y < 0 || pos.y >= game.height){continue;}
+        if(map[pos.x][pos.y].type != 0){continue;}
 
         bool coverIsTakenAlready = false;
         for(auto &[j_id, j] : agent){
@@ -123,8 +124,8 @@ COORDS findTarget(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, 
         }
         if(coverIsTakenAlready) continue;
 
-        int points = distance(pos, {game.width/2, agent[id].c.y});
-        if(points < minPoints && abs(agent[id].c.x - pos.x) < game.width/2 - 1){
+        int points = distance(pos, {game.width/2, agent[id].startC.y});
+        if(points < minPoints && abs(agent[id].startC.x - pos.x) < game.width/2 - 1){
             minPoints = points;
             target = pos;
         }
@@ -404,6 +405,9 @@ int main()
             int id;
             cin >> id >> agent[id].c.x >> agent[id].c.y >> agent[id].cooldown >> agent[id].bombs >> agent[id].wetness; cin.ignore();
             agent[id].dead = false;
+            if(agent[id].startC.x == -1){
+                agent[id].startC = agent[id].c;
+            }
         }
 
         cin >> game.my_agent_count; cin.ignore();
