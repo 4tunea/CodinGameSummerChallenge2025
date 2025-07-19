@@ -354,6 +354,8 @@ void findNextMove(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, 
         int toShoot = canShoot(agent, id);
         if(toShoot != -1 && agent[id].cooldown == 0){
             agent[id].move += ";SHOOT " + to_string(toShoot);
+        }else{
+            agent[id].move += ";HUNKER_DOWN";
         }
     }
 }
