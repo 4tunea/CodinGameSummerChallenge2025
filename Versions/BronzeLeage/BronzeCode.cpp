@@ -13,6 +13,8 @@ struct GAME{
     int my_agent_count; // Number of agents controlled by the player
     int width; // width
     int height; // height
+    int myPoints = 0; // My game points
+    int oppPoints = 0; // Opponents game points
 };
 
 struct COORDS{
@@ -29,7 +31,7 @@ struct AGENT{
     int bombs; // Number of splash bombs this can throw this game
     int wetness; // Taken damage
     bool mine; // Does the agent belong to me
-    COORDS target; // The target tile to reach
+    COORDS target = {-1, -1}; // The target tile to reach
     COORDS nextMove = {-1, -1}; // Next move where the agent is going to go
     bool dead = true; // If true agent is dead
     string move = ""; // Full string of move action etc, for couting
@@ -50,6 +52,7 @@ void PRINT(unordered_map<int, AGENT> agent){
     for(auto [id, i] : agent){
         cerr<<id<<":\n";
         cerr<<"    IsMine: "<<i.mine<<"\n";
+        cerr<<"    StartPos: "<<i.startC.x<<" "<<i.startC.y<<"\n";
         cerr<<"    Range: "<<i.range<<"\n";
         cerr<<"    Power: "<<i.power<<"\n";
         cerr<<"    Wetness: "<<i.wetness<<"\n";
@@ -341,7 +344,7 @@ int canShoot(unordered_map<int, AGENT>& agent, int id){
 
 void findNextMove(GAME& game, vector<vector<TILE>>& map, vector<COVER>& covers, unordered_map<int, AGENT>& agent, int id, vector<vector<int>>& mapBombUsage){
     // 1 action
-    agent[id].target = findTarget(game, map, covers, agent, id);
+    if(agent[id].target.x == -1){agent[id].target = findTarget(game, map, covers, agent, id);}
     agent[id].nextMove = selectRoute(game, map, agent[id].c, agent[id].target);
     agent[id].move = ";MOVE " + to_string(agent[id].nextMove.x) + ' ' + to_string(agent[id].nextMove.y);
     vector<vector<int>> mapNextMoveAgent = mapNextMoveAgents(game, agent);
