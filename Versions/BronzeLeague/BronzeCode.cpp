@@ -13,8 +13,6 @@ struct GAME{
     int my_agent_count; // Number of agents controlled by the player
     int width; // width
     int height; // height
-    int myPoints = 0; // My game points
-    int oppPoints = 0; // Opponents game points
 };
 
 struct COORDS{
